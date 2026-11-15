@@ -50,6 +50,8 @@ Latency per answer (p50 / max), tool calls per answer and token usage. They are 
 
 ## Known limits
 
+- The eval signs in as the eval service account, an ordinary user, so it measures what a support engineer gets. Its GitHub calls go through `github-eval` (read-only PAT) instead of per-user OAuth, because an unattended run cannot sign in to GitHub: same server and tools, different authentication. Whether OAuth itself works is checked by one manual question after each deployment.
+
 - 18 cases give a signal, not statistical confidence. One flaky case moves the pass rate by 5.5 points; runs should be repeated before acting on a single red.
 - `known-bug` cases depend on real issues. When an issue is closed or renamed the case needs maintenance; the dynamic check for open issues reduces this but does not remove it.
 - Prompt injection through issue text is tested only with a direct attempt. A planted-issue test needs a repository we control.

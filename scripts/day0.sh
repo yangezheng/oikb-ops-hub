@@ -9,7 +9,11 @@
 #   3. migrate job             Open WebUI schema
 #   4. apply with the app      first replica starts against a ready database
 #   5. bootstrap job           knowledge base + "oikb Ops Assistant"
-#   6. sync job                first sync, so the heartbeat alert starts green
+#   6. runtime setup + apply   sync and eval accounts, knowledge base access,
+#                              (GitHub App) OAuth client record; the values only
+#                              the running instance can produce go into a tfvars
+#                              file that every later apply uses
+#   7. sync job                first sync, so the heartbeat alert starts green
 #
 # Every step is idempotent; the script can be re-run after a failure.
 # Needs: terraform, az (logged in), curl, python3.
@@ -19,6 +23,12 @@ VARS="${1:?usage: scripts/day0.sh <path to the OpCo tfvars file>}"
 VARS="$(cd "$(dirname "$VARS")" && pwd)/$(basename "$VARS")"
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 OPCO="$(basename "$VARS" .tfvars)"
+# Written in step 6; passed to every apply after that.
+RUNTIME_VARS="$(dirname "$VARS")/$OPCO.runtime.tfvars"
+var_files() {
+  echo "-var-file=$VARS"
+  if [[ -f "$RUNTIME_VARS" ]]; then echo "-var-file=$RUNTIME_VARS"; fi
+}
 
 cd "$ROOT/infra/instance"
 terraform init -input=false
@@ -50,17 +60,19 @@ run_job() {
   done
 }
 
-step "1/6 apply without the app"
-terraform apply -input=false -var-file="$VARS" -var deploy_app=false
+step "1/7 apply without the app"
+# shellcheck disable=SC2046
+terraform apply -input=false $(var_files) -var deploy_app=false
 
-step "2/6 db-init"
+step "2/7 db-init"
 run_job "$(job db_init)" 600
 
-step "3/6 migrate"
+step "3/7 migrate"
 run_job "$(job migrate)" 2400
 
-step "4/6 apply with the app"
-terraform apply -input=false -var-file="$VARS"
+step "4/7 apply with the app"
+# shellcheck disable=SC2046
+terraform apply -input=false $(var_files)
 
 URL="$(out url)"
 echo "waiting for $URL/health"
@@ -70,13 +82,25 @@ for _ in $(seq 1 90); do
 done
 curl -fsS "$URL/health" >/dev/null || { echo "Open WebUI did not become healthy" >&2; exit 1; }
 
-step "5/6 bootstrap"
+step "5/7 bootstrap"
 run_job "$(job bootstrap)" 1500
 
-step "6/6 first sync"
+step "6/7 runtime setup"
+OPEN_WEBUI_URL="$URL" ADMIN_EMAIL="$(out admin_email)" ADMIN_PASSWORD="$(out admin_password)" \
+SYNC_EMAIL="$(out sync_email)" SYNC_PASSWORD="$(out sync_password)" \
+EVAL_EMAIL="$(out eval_email)" EVAL_PASSWORD="$(out eval_password)" \
+GITHUB_APP_CLIENT_SECRET="${TF_VAR_github_app_client_secret:-}" \
+  python3 "$ROOT/app/runtime_setup.py" "$RUNTIME_VARS"
+# shellcheck disable=SC2046
+terraform apply -input=false $(var_files)
+
+step "7/7 first sync"
 run_job "$(job sync)" 1200
 
 step "done"
 echo "URL:      $URL"
 echo "Login:    $(out admin_email)"
 echo "Password: terraform -chdir=infra/instance output -raw admin_password"
+if [[ -n "${TF_VAR_github_app_client_secret:-}" ]]; then
+  echo "GitHub App callback URL (set it in the App settings): $(out github_oauth_callback_url)"
+fi

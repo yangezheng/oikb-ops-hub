@@ -21,7 +21,13 @@ Azure Monitor alerts when that line has NOT appeared for 45 minutes. So a run
 that crashes, hangs, cannot log in or is never scheduled needs no error
 handling here: silence is the signal.
 
-Standard library only; runs with the Python inside the oikb image.
+GitHub credentials, in this order:
+  1. GitHub App (GITHUB_APP_ID, GITHUB_APP_INSTALLATION_ID, GITHUB_APP_PRIVATE_KEY):
+     a read-only installation token is minted for this run and expires after
+     one hour. Nothing long-lived reaches oikb.
+  2. GITHUB_TOKEN: a fine-grained read-only PAT.
+
+Runs with the Python inside the oikb image, which ships PyJWT and cryptography.
 """
 
 import json
@@ -34,12 +40,15 @@ import urllib.error
 import urllib.request
 
 BASE_URL = os.environ["OPEN_WEBUI_URL"].rstrip("/")
-ADMIN_EMAIL = os.environ["ADMIN_EMAIL"]
-ADMIN_PASSWORD = os.environ["ADMIN_PASSWORD"]
+# An ordinary account with write access to this knowledge base, not the admin.
+# (ADMIN_* still works for a laptop run before the service account exists.)
+SYNC_EMAIL = os.environ.get("SYNC_EMAIL") or os.environ["ADMIN_EMAIL"]
+SYNC_PASSWORD = os.environ.get("SYNC_PASSWORD") or os.environ["ADMIN_PASSWORD"]
 KB_NAME = os.environ.get("KB_NAME", "oikb repository")
 SYNC_SOURCE = os.environ.get("SYNC_SOURCE", "github:open-webui/oikb")
 INSTANCE = os.environ.get("INSTANCE", "local")
 PROCESSING_TIMEOUT = int(os.environ.get("PROCESSING_TIMEOUT", "300"))
+GITHUB_API = "https://api.github.com"
 
 DRIFT = re.compile(r"\b(\d+) (added|modified|deleted)\b")
 
@@ -62,6 +71,52 @@ def api(method: str, path: str, token: str | None = None, body: dict | None = No
         raise RuntimeError(f"{method} {path} -> HTTP {exc.code}: {exc.read().decode()[:300]}") from exc
 
 
+def unset(value: str | None) -> bool:
+    return not value or value == "none"
+
+
+def github_app_jwt(app_id: str, private_key: str, now: int | None = None) -> str:
+    """The short-lived JWT a GitHub App signs to ask for an installation token."""
+    import jwt  # PyJWT, shipped in the oikb image
+
+    now = int(now if now is not None else time.time())
+    payload = {"iat": now - 60, "exp": now + 540, "iss": str(app_id)}  # GitHub allows at most 10 minutes
+    return jwt.encode(payload, private_key, algorithm="RS256")
+
+
+def github_app_token(app_id: str, installation_id: str, private_key: str) -> str:
+    """Installation token limited to reading contents, issues and pull requests."""
+    body = {"permissions": {"contents": "read", "metadata": "read"}}
+    req = urllib.request.Request(
+        f"{GITHUB_API}/app/installations/{installation_id}/access_tokens",
+        data=json.dumps(body).encode(),
+        method="POST",
+        headers={
+            "Authorization": f"Bearer {github_app_jwt(app_id, private_key)}",
+            "Accept": "application/vnd.github+json",
+            "X-GitHub-Api-Version": "2022-11-28",
+        },
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            return json.loads(resp.read().decode())["token"]
+    except urllib.error.HTTPError as exc:
+        raise RuntimeError(f"GitHub App token: HTTP {exc.code}: {exc.read().decode()[:300]}") from exc
+
+
+def github_credentials() -> tuple[str | None, str]:
+    """(token, how) for the oikb subprocess."""
+    app_id = os.environ.get("GITHUB_APP_ID")
+    installation_id = os.environ.get("GITHUB_APP_INSTALLATION_ID")
+    private_key = os.environ.get("GITHUB_APP_PRIVATE_KEY")
+    if not (unset(app_id) or unset(installation_id) or unset(private_key)):
+        return github_app_token(app_id, installation_id, private_key), "github-app"
+    token = os.environ.get("GITHUB_TOKEN")
+    if not unset(token):
+        return token, "pat"
+    return None, "anonymous"
+
+
 def find_knowledge_base(listing, name: str) -> str | None:
     """The list endpoint returns either a list or {"items": [...]}."""
     items = listing.get("items", []) if isinstance(listing, dict) else (listing or [])
@@ -73,14 +128,19 @@ def find_knowledge_base(listing, name: str) -> str | None:
 
 def main() -> int:
     started = time.time()
-    token = api("POST", "/api/v1/auths/signin", body={"email": ADMIN_EMAIL, "password": ADMIN_PASSWORD})["token"]
+    token = api("POST", "/api/v1/auths/signin", body={"email": SYNC_EMAIL, "password": SYNC_PASSWORD})["token"]
 
     kb_id = find_knowledge_base(api("GET", "/api/v1/knowledge/", token), KB_NAME)
     if not kb_id:
         raise RuntimeError(f"knowledge base '{KB_NAME}' not found: run the bootstrap job first")
 
-    log(f"syncing {SYNC_SOURCE} -> knowledge base {kb_id}")
-    env = dict(os.environ, OPEN_WEBUI_URL=BASE_URL, OPEN_WEBUI_API_KEY=token)
+    github_token, how = github_credentials()
+    log(f"syncing {SYNC_SOURCE} -> knowledge base {kb_id} (GitHub auth: {how})")
+    env = {k: v for k, v in os.environ.items() if not k.startswith("GITHUB_APP_")}
+    env.update(OPEN_WEBUI_URL=BASE_URL, OPEN_WEBUI_API_KEY=token)
+    env.pop("GITHUB_TOKEN", None)
+    if github_token:
+        env["GITHUB_TOKEN"] = github_token
     sync = subprocess.run(["oikb", "sync", SYNC_SOURCE, "--kb-id", kb_id], env=env, check=False)
     if sync.returncode != 0:
         return fail(f"exit={sync.returncode}", started)

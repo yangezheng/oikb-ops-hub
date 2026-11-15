@@ -53,6 +53,11 @@ locals {
     RAG_AZURE_OPENAI_API_VERSION = "2024-10-21"
     RAG_EMBEDDING_BATCH_SIZE     = "32"
 
+    # Secrets come from Key Vault, and a changed secret does not restart the
+    # app. This hash changes with the MCP connection, so Terraform rolls out a
+    # new revision that reads the new value.
+    CONFIG_REVISION = substr(nonsensitive(sha256(local.tool_server_connections)), 0, 12)
+
     # No outbound telemetry / update pings from an enterprise hub.
     SCARF_NO_ANALYTICS          = "true"
     DO_NOT_TRACK                = "true"

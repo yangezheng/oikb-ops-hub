@@ -13,3 +13,9 @@ alert_email = "platform-admin@example.com"
 #   sku      = "GlobalStandard"
 #   capacity = 10
 # }
+
+# If PostgreSQL fails with "SkuNotAvailable", the subscription cannot create
+# this server size in this region. Find a region that offers it:
+#   az postgres flexible-server list-skus --location germanywestcentral -o table
+# and put only the database there (the rest stays in var.location):
+# postgres_location = "germanywestcentral"

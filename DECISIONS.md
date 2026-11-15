@@ -9,10 +9,10 @@
 
 ## 2. Access scope
 
-- **Options:** GitHub App, fine-grained PAT, classic PAT, per-user OAuth, anonymous.
-- **Chosen:** the official remote GitHub MCP server, restricted three times: (1) its `/readonly` endpoint, which registers no write tools; (2) toolsets limited to `repos,issues,pull_requests`; (3) one **fine-grained PAT, "Public repositories (read-only)", no permissions**, kept in Key Vault and read through a managed identity. (3) is the control: this token cannot write to any repository, whatever the configuration or the model does. The connection is an environment variable, so "read-only" is reviewable in Git. The assistant's built-in tools are cut down to knowledge search and the date.
-- **Trade-off:** a PAT belongs to a person and expires; rotation is manual. Public issue text is untrusted input: it can cause a wrong answer, but the Hub holds nothing it could write with.
-- **Would change my mind:** private OpCo repositories. Then a GitHub App installed on those repositories only, with short-lived tokens.
+- **Options:** one shared PAT; a GitHub App for everything; an App for the sync plus per-user OAuth for the assistant; anonymous.
+- **Chosen:** one **GitHub App with read-only permissions** (contents, issues, pull requests). The sync job mints a 1-hour installation token per run. The MCP connection is OAuth 2.1 with the App's credentials, so each support engineer reads GitHub **with their own identity**: the assistant sees what that person may see, and GitHub's audit log shows who asked. Read-only holds three times: the `/readonly` MCP endpoint registers no write tools; toolsets are limited to `repos,issues,pull_requests`; and the App declares no write permission, while a user token is the intersection of App and user permissions. The last is the control. Secrets stay in Key Vault; the assistant's built-in tools are cut to knowledge search and the date.
+- **Trade-off:** every user authorises once. Unattended runs cannot, so the eval account alone gets a second connection with a read-only PAT; the eval therefore does not exercise the OAuth path itself. Day 0 needs a third apply, because Open WebUI must build its own encrypted OAuth client record. Automation runs as ordinary service accounts (sync may write one knowledge base), never as admin. A shared PAT would be simpler and, for a public repository, grants nothing a user could not see anyway; it remains the fallback.
+- **Would change my mind:** users without GitHub accounts, or one repository with identical access for everyone: then the shared read-only token.
 
 ## 3. Failure detection
 
@@ -24,6 +24,6 @@
 ## 4. Scope
 
 - **Built beyond the brief:** Container Apps instead of a VM, PostgreSQL + pgvector and Blob Storage instead of files on a disk, and Terraform split into a shared platform layer and a per-OpCo layer. Reason: on a file share, two replicas during a revision switch can corrupt SQLite, and the split makes a second OpCo a tfvars file.
-- **Left out:** private networking (PostgreSQL and Azure OpenAI use public endpoints with TLS); SSO; a least-privilege service account for the sync (it signs in as admin); Redis and more than one replica; a staging stage; Application Gateway and WAF; remote Terraform state; a prompt-injection test with planted content.
+- **Left out:** private networking (PostgreSQL and Azure OpenAI use public endpoints with TLS); SSO; Redis and more than one replica; a staging stage; Application Gateway and WAF; remote Terraform state; a prompt-injection test with planted content.
 - **Trade-off:** day 0 is two applies and four jobs instead of one command, and the shared PostgreSQL server is one failure domain with whole-server restore only.
-- **Would change my mind:** production use. Order: private endpoints and SSO, then the service account, then staging with the eval suite as the release gate.
+- **Would change my mind:** production use. Order: private endpoints and SSO, then staging with the eval suite as the release gate.

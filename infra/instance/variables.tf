@@ -25,15 +25,77 @@ variable "admin_email" {
   type        = string
 }
 
+# ── GitHub access ──────────────────────────────────────────────────
+# Two ways, chosen by what is filled in:
+#
+#   GitHub App (recommended)  github_app_* below. The sync job mints a 1-hour
+#                             installation token per run; the MCP connection
+#                             uses OAuth 2.1, so every user reads GitHub with
+#                             their own identity and permissions.
+#   Fine-grained PAT          github_token only. One read-only token for
+#                             everything; fine for public repositories.
+
+variable "github_app_id" {
+  description = "App ID of the GitHub App (App settings > General). Used by the sync job."
+  type        = string
+  default     = ""
+}
+
+variable "github_app_installation_id" {
+  description = "Installation ID of the GitHub App: the number at the end of https://github.com/settings/installations/<id>."
+  type        = string
+  default     = ""
+}
+
+variable "github_app_private_key" {
+  description = "PEM private key of the GitHub App. Pass it as TF_VAR_github_app_private_key=\"$(cat key.pem)\", never in a file in the repository."
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "github_app_client_id" {
+  description = "Client ID of the GitHub App (starts with Iv). Turns the MCP connection into per-user OAuth 2.1."
+  type        = string
+  default     = ""
+}
+
+variable "github_app_client_secret" {
+  description = "Client secret of the GitHub App."
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "github_mcp_oauth_client_info" {
+  description = "Encrypted OAuth client record that Open WebUI creates for the MCP connection. Written by scripts/day0.sh (app/runtime_setup.py) into <opco>.runtime.tfvars; do not fill in by hand."
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "eval_user_id" {
+  description = "Open WebUI id of the eval service account. Written by scripts/day0.sh (app/runtime_setup.py) into <opco>.runtime.tfvars; do not fill in by hand."
+  type        = string
+  default     = ""
+}
+
 variable "github_token" {
   description = <<-EOT
-    GitHub fine-grained personal access token with 'Public repositories (read-only)'
-    repository access and NO additional permissions. Used by oikb (to avoid the
-    60 req/h anonymous rate limit) and by the GitHub MCP connection.
-    It cannot write to any repository by construction.
+    Fine-grained personal access token with 'Public repositories (read-only)'
+    and NO additional permissions, ideally of a bot account.
+    With a GitHub App: only the eval account uses it (connection github-eval),
+    because unattended runs cannot sign in to GitHub interactively.
+    Without a GitHub App: used by the sync job and shared by all users.
   EOT
   type        = string
+  default     = ""
   sensitive   = true
+
+  validation {
+    condition     = var.github_token != "" || (var.github_app_id != "" && var.github_app_installation_id != "" && var.github_app_client_id != "")
+    error_message = "Configure either a GitHub App (github_app_id, github_app_installation_id, github_app_private_key, github_app_client_id, github_app_client_secret) or a github_token."
+  }
 }
 
 # ── Pinned versions ────────────────────────────────────────────────

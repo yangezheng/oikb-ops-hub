@@ -1,7 +1,8 @@
 name: eval
 
 # Nightly quality check of the live Hub, and on every change that can affect answers.
-# Needs two repository secrets: HUB_URL and HUB_API_KEY.
+# Needs three repository secrets: HUB_URL, HUB_EMAIL and HUB_PASSWORD
+# (terraform output eval_email / eval_password: the eval service account).
 
 on:
   schedule:
@@ -27,7 +28,8 @@ jobs:
       - name: Run golden set
         env:
           HUB_URL: ${{ secrets.HUB_URL }}
-          HUB_API_KEY: ${{ secrets.HUB_API_KEY }}
+          HUB_EMAIL: ${{ secrets.HUB_EMAIL }}
+          HUB_PASSWORD: ${{ secrets.HUB_PASSWORD }}
           GITHUB_TOKEN: ${{ github.token }}
         run: python evals/run_eval.py --judge
       - uses: actions/upload-artifact@v4

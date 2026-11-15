@@ -5,6 +5,16 @@ opco = "opco1"
 # Login of the Open WebUI admin account (password: terraform output -raw admin_password).
 admin_email = "admin@example.com"
 
-# Fine-grained PAT, repository access "Public repositories (read-only)", no extra permissions.
-# Better: export TF_VAR_github_token=... instead of writing it to a file.
-# github_token = "github_pat_..."
+# GitHub access, option A (recommended): a GitHub App. See README, "GitHub App".
+# Non-secret values here, secrets as environment variables:
+#   export TF_VAR_github_app_private_key="$(cat ~/Downloads/<app>.private-key.pem)"
+#   export TF_VAR_github_app_client_secret=...
+# github_app_id              = "1234567"
+# github_app_installation_id = "12345678"
+# github_app_client_id       = "Iv23li..."
+
+# Plus, with option A, a read-only PAT for the eval account only (unattended
+# runs cannot sign in to GitHub). Without it, eval questions that need GitHub fail.
+#   export TF_VAR_github_token=github_pat_...
+
+# GitHub access, option B: only the PAT above, shared by everyone.

@@ -4,7 +4,7 @@
 #   db-init    server admin: login role, REVOKE CONNECT FROM PUBLIC, vector extension
 #   migrate    Open WebUI schema migrations (also the first step of every upgrade)
 #   bootstrap  API key, knowledge base, base model entry, "oikb Ops Assistant"
-#   sync       oikb: repository -> knowledge base, every 15 minutes
+#   sync       oikb: repository -> knowledge base, every 15 minutes, as the sync account
 #
 # The scripts are passed to `python -c`, so the jobs run stock images and the
 # repository needs no container registry.
@@ -191,6 +191,10 @@ resource "azurerm_container_app_job" "bootstrap" {
         value = var.kb_name
       }
       env {
+        name  = "MCP_TOOL_IDS"
+        value = local.assistant_tool_ids
+      }
+      env {
         name  = "STATE_FILE"
         value = "/tmp/runtime.env"
       }
@@ -224,14 +228,20 @@ resource "azurerm_container_app_job" "sync" {
   }
 
   secret {
-    name                = "admin-password"
-    key_vault_secret_id = azurerm_key_vault_secret.this["admin-password"].versionless_id
+    name                = "sync-password"
+    key_vault_secret_id = azurerm_key_vault_secret.this["sync-password"].versionless_id
     identity            = azurerm_user_assigned_identity.app.id
   }
 
   secret {
     name                = "github-token"
     key_vault_secret_id = azurerm_key_vault_secret.this["github-token"].versionless_id
+    identity            = azurerm_user_assigned_identity.app.id
+  }
+
+  secret {
+    name                = "github-app-private-key"
+    key_vault_secret_id = azurerm_key_vault_secret.this["github-app-private-key"].versionless_id
     identity            = azurerm_user_assigned_identity.app.id
   }
 
@@ -247,16 +257,31 @@ resource "azurerm_container_app_job" "sync" {
         name  = "OPEN_WEBUI_URL"
         value = local.url
       }
+      # Not the admin: an ordinary account with write access to this one
+      # knowledge base (granted by app/runtime_setup.py).
       env {
-        name  = "ADMIN_EMAIL"
-        value = var.admin_email
+        name  = "SYNC_EMAIL"
+        value = local.service_accounts.sync
       }
       env {
-        name        = "ADMIN_PASSWORD"
-        secret_name = "admin-password"
+        name        = "SYNC_PASSWORD"
+        secret_name = "sync-password"
       }
-      # Same read-only token as the MCP connection; lifts the GitHub API
-      # limit from 60 to 5000 requests per hour.
+      # GitHub App: a fresh read-only installation token per run (valid 1 hour).
+      # Without an App: the fallback PAT ("none" when not set).
+      # Either lifts the GitHub API limit from 60 to at least 5000 requests per hour.
+      env {
+        name  = "GITHUB_APP_ID"
+        value = var.github_app_id
+      }
+      env {
+        name  = "GITHUB_APP_INSTALLATION_ID"
+        value = var.github_app_installation_id
+      }
+      env {
+        name        = "GITHUB_APP_PRIVATE_KEY"
+        secret_name = "github-app-private-key"
+      }
       env {
         name        = "GITHUB_TOKEN"
         secret_name = "github-token"

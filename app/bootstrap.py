@@ -41,8 +41,10 @@ KB_DESCRIPTION = (
 )
 MODEL_ID = "oikb-ops-assistant"
 MODEL_NAME = "oikb Ops Assistant"
-# "server:mcp:" + info.id of the GitHub connection. List them: GET /api/v1/tools/
-MCP_TOOL_ID = os.environ.get("MCP_TOOL_ID", "server:mcp:github")
+# "server:mcp:" + info.id of each GitHub connection. With a GitHub App there are
+# two (per-user OAuth, and the eval account's); access control decides who gets
+# which. List them: GET /api/v1/tools/
+MCP_TOOL_IDS = [t for t in os.environ.get("MCP_TOOL_IDS", os.environ.get("MCP_TOOL_ID", "server:mcp:github")).split(",") if t]
 
 # Readable by every signed-in user (the support team); writable by the admin only.
 READ_FOR_ALL = [{"principal_type": "user", "principal_id": "*", "permission": "read"}]
@@ -181,7 +183,7 @@ def ensure_model(token: str, kb: dict) -> None:
                     "description": kb.get("description", KB_DESCRIPTION),
                 }
             ],
-            "toolIds": [MCP_TOOL_ID],
+            "toolIds": MCP_TOOL_IDS,
             # Least privilege inside the Hub as well: by default a model also
             # gets built-in tools to write notes, create tools, skills,
             # automations and calendar entries. A support assistant needs

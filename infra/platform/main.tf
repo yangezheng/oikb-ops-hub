@@ -7,7 +7,7 @@
 # Owned by the platform team. One state file per stage.
 
 locals {
-  prefix            = var.stage == "prod" ? var.name : "${var.name}-${var.stage}"
+  prefix          = var.stage == "prod" ? var.name : "${var.name}-${var.stage}"
   openai_location   = coalesce(var.openai_location, var.location)
   postgres_location = coalesce(var.postgres_location, var.location)
 
@@ -77,6 +77,8 @@ resource "azurerm_container_app_environment" "this" {
   log_analytics_workspace_id = azurerm_log_analytics_workspace.this.id
   tags                       = local.tags
 
+  # Azure adds a "Consumption" workload profile to every new environment.
+  # Without this, each plan would try to remove it again.
   lifecycle {
     ignore_changes = [workload_profile]
   }

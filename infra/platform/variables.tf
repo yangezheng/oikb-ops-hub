@@ -79,7 +79,7 @@ variable "embedding_model" {
 # ── PostgreSQL ─────────────────────────────────────────────────────
 
 variable "postgres_location" {
-  description = "Region of the PostgreSQL server. Defaults to var.location."
+  description = "Region of the PostgreSQL server. Defaults to var.location. Some subscriptions (free and trial ones in particular) cannot create Burstable servers in every region: check with `az postgres flexible-server list-skus --location <region>`."
   type        = string
   default     = null
 }

@@ -6,6 +6,18 @@ resource "random_password" "webui_secret_key" {
   special = false
 }
 
+# Service accounts: ordinary users, so they get exactly what a user gets and
+# nothing more. sync = writes the knowledge base; eval = runs the golden set.
+resource "random_password" "sync_password" {
+  length  = 32
+  special = false
+}
+
+resource "random_password" "eval_password" {
+  length  = 32
+  special = false
+}
+
 resource "random_password" "admin_password" {
   length           = 24
   special          = true
@@ -50,38 +62,100 @@ resource "time_sleep" "rbac_propagation" {
 }
 
 locals {
+  github_app = var.github_app_id != "" && var.github_app_installation_id != ""
+  mcp_oauth  = var.github_app_client_id != ""
+
   # GitHub MCP server (official, remote), READ-ONLY, three layers:
   #   1. /readonly endpoint  -> the server does not even register write tools
   #   2. X-MCP-Toolsets      -> only repository, issue and pull-request reads
-  #   3. the token itself    -> fine-grained PAT, public repositories read-only
+  #   3. the credential      -> GitHub App: its declared permissions are read-only,
+  #                             and a user token is the intersection of App and
+  #                             user permissions. PAT: no write permission at all.
   # (3) is the real control: it holds even if (1) and (2) are misconfigured.
-  # info.id "github" makes the tool id "server:mcp:github" (used by bootstrap.py).
-  tool_server_connections = jsonencode([{
+  # info.id "github" makes the tool id "server:mcp:github" (used by bootstrap.py)
+  # and the OAuth callback <url>/oauth/clients/mcp:github/callback.
+  mcp_common = {
     type      = "mcp"
     url       = "https://api.githubcopilot.com/mcp/readonly"
     path      = ""
-    auth_type = "bearer"
-    key       = var.github_token
     headers   = { "X-MCP-Toolsets" = "repos,issues,pull_requests" }
     config = {
       enable        = true
       access_grants = [{ principal_type = "user", principal_id = "*", permission = "read" }]
     }
-    info = {
-      id          = "github"
-      name        = "GitHub (read-only)"
-      description = "Official GitHub MCP server, read-only: code, commits, issues and pull requests of public repositories."
+  }
+
+  mcp_info = {
+    id          = "github"
+    name        = "GitHub (read-only)"
+    description = "Official GitHub MCP server, read-only: code, commits, issues and pull requests."
+  }
+
+  # Per-user OAuth 2.1 with the GitHub App's static credentials. Each user
+  # authorises once; Open WebUI stores their token and sends it with their calls.
+  # GitHub Apps ignore OAuth scopes: permissions come from the App settings.
+  mcp_connection_oauth = merge(local.mcp_common, {
+    auth_type = "oauth_2.1_static"
+    key       = ""
+    info = merge(local.mcp_info, {
+      oauth_scope         = "read:user"
+      oauth_client_id     = var.github_app_client_id
+      oauth_client_secret = var.github_app_client_secret
+      oauth_server_url    = ""
+      },
+      # Created by Open WebUI itself (day0.sh step 7); empty on the first apply.
+      var.github_mcp_oauth_client_info != "" ? { oauth_client_info = var.github_mcp_oauth_client_info } : {}
+    )
+  })
+
+  mcp_connection_bearer = merge(local.mcp_common, {
+    auth_type = "bearer"
+    key       = var.github_token
+    info      = local.mcp_info
+  })
+
+  # Same server, shared read-only PAT, usable ONLY by the eval account.
+  # Unattended runs cannot do an interactive GitHub sign-in. Users without
+  # access to a connection do not get its tools at all.
+  mcp_connection_eval = merge(local.mcp_common, {
+    auth_type = "bearer"
+    key       = var.github_token
+    config = {
+      enable        = true
+      access_grants = [{ principal_type = "user", principal_id = var.eval_user_id, permission = "read" }]
     }
-  }])
+    info = merge(local.mcp_info, {
+      id   = "github-eval"
+      name = "GitHub (read-only, eval account)"
+    })
+  })
+
+  eval_connection_ready = local.mcp_oauth && var.github_token != "" && var.eval_user_id != ""
+
+  tool_server_connections = jsonencode(
+    local.mcp_oauth
+    ? concat([local.mcp_connection_oauth], local.eval_connection_ready ? [local.mcp_connection_eval] : [])
+    : [local.mcp_connection_bearer]
+  )
+
+  # The assistant carries both tools; access control decides who gets which.
+  assistant_tool_ids = local.mcp_oauth ? "server:mcp:github,server:mcp:github-eval" : "server:mcp:github"
+
+  service_accounts = {
+    sync = "sync@${local.instance}.invalid"
+    eval = "eval@${local.instance}.invalid"
+  }
 
   secret_values = {
     "webui-secret-key"        = random_password.webui_secret_key.result
     "admin-password"          = random_password.admin_password.result
+    "sync-password"           = random_password.sync_password.result
     "database-url"            = local.database_url
     "pg-admin-url"            = local.pg_admin_url
     "db-app-password"         = random_password.db_app.result
     "openai-key"              = local.platform.openai_key
-    "github-token"            = var.github_token
+    "github-token"            = var.github_token != "" ? var.github_token : "none"
+    "github-app-private-key"  = var.github_app_private_key != "" ? var.github_app_private_key : "none"
     "tool-server-connections" = local.tool_server_connections
   }
 
@@ -89,11 +163,13 @@ locals {
   secret_names = [
     "webui-secret-key",
     "admin-password",
+    "sync-password",
     "database-url",
     "pg-admin-url",
     "db-app-password",
     "openai-key",
     "github-token",
+    "github-app-private-key",
     "tool-server-connections",
   ]
 }

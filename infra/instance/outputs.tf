@@ -35,3 +35,28 @@ output "jobs" {
     sync      = azurerm_container_app_job.sync.name
   }
 }
+
+output "github_oauth_callback_url" {
+  description = "Callback URL to register in the GitHub App (only used with github_app_client_id)."
+  value       = "${local.url}/oauth/clients/mcp:github/callback"
+}
+
+output "sync_email" {
+  description = "Service account the sync job signs in with (ordinary user, writes the knowledge base)."
+  value       = local.service_accounts.sync
+}
+
+output "eval_email" {
+  description = "Service account the eval runner signs in with (ordinary user)."
+  value       = local.service_accounts.eval
+}
+
+output "sync_password" {
+  value     = random_password.sync_password.result
+  sensitive = true
+}
+
+output "eval_password" {
+  value     = random_password.eval_password.result
+  sensitive = true
+}
