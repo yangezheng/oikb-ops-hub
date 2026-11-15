@@ -1,0 +1,10 @@
+subscription_id = "00000000-0000-0000-0000-000000000000"
+
+opco = "opco1"
+
+# Login of the Open WebUI admin account (password: terraform output -raw admin_password).
+admin_email = "admin@example.com"
+
+# Fine-grained PAT, repository access "Public repositories (read-only)", no extra permissions.
+# Better: export TF_VAR_github_token=... instead of writing it to a file.
+# github_token = "github_pat_..."

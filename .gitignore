@@ -1,0 +1,20 @@
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+terraform.tfstate.d/
+*.tfvars
+!*.tfvars.example
+crash.log
+
+# Python
+__pycache__/
+.venv/
+
+# Eval output
+evals/results/
+
+# Local secrets
+.env
+runtime.env
+*.pem

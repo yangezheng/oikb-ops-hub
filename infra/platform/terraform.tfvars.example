@@ -1,0 +1,15 @@
+subscription_id = "00000000-0000-0000-0000-000000000000"
+
+# Where "the instance is down" and "the sync is broken" mails go.
+alert_email = "platform-admin@example.com"
+
+# stage = "prod"
+
+# Free and trial subscriptions have little Azure OpenAI quota. If apply fails
+# with a quota error, lower the capacity (thousands of tokens per minute):
+# chat_model = {
+#   name     = "gpt-5-mini"
+#   version  = "2025-08-07"
+#   sku      = "GlobalStandard"
+#   capacity = 10
+# }
