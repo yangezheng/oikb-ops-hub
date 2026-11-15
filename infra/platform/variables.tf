@@ -78,6 +78,12 @@ variable "embedding_model" {
 
 # ── PostgreSQL ─────────────────────────────────────────────────────
 
+variable "postgres_location" {
+  description = "Region of the PostgreSQL server. Defaults to var.location."
+  type        = string
+  default     = null
+}
+
 variable "postgres_sku" {
   description = "Shared PostgreSQL server. B1ms allows about 50 connections (35 usable): enough for a few instances, not for 55. Budget DATABASE_POOL_SIZE per instance before adding OpCos."
   type        = string

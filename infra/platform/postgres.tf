@@ -22,7 +22,7 @@ resource "random_password" "postgres_admin" {
 
 resource "azurerm_postgresql_flexible_server" "this" {
   name                          = "psql-${local.prefix}-${random_string.suffix.result}"
-  location                      = azurerm_resource_group.platform.location
+  location                      = local.postgres_location
   resource_group_name           = azurerm_resource_group.platform.name
   version                       = var.postgres_version
   sku_name                      = var.postgres_sku
