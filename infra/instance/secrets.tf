@@ -75,10 +75,10 @@ locals {
   # info.id "github" makes the tool id "server:mcp:github" (used by bootstrap.py)
   # and the OAuth callback <url>/oauth/clients/mcp:github/callback.
   mcp_common = {
-    type      = "mcp"
-    url       = "https://api.githubcopilot.com/mcp/readonly"
-    path      = ""
-    headers   = { "X-MCP-Toolsets" = "repos,issues,pull_requests" }
+    type    = "mcp"
+    url     = "https://api.githubcopilot.com/mcp/readonly"
+    path    = ""
+    headers = { "X-MCP-Toolsets" = "repos,issues,pull_requests" }
     config = {
       enable        = true
       access_grants = [{ principal_type = "user", principal_id = "*", permission = "read" }]

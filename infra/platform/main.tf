@@ -7,7 +7,7 @@
 # Owned by the platform team. One state file per stage.
 
 locals {
-  prefix          = var.stage == "prod" ? var.name : "${var.name}-${var.stage}"
+  prefix            = var.stage == "prod" ? var.name : "${var.name}-${var.stage}"
   openai_location   = coalesce(var.openai_location, var.location)
   postgres_location = coalesce(var.postgres_location, var.location)
 
