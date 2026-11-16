@@ -31,16 +31,17 @@ tool fails the case whatever the answer says.
 The three questions from the brief, plus one question per further behaviour.
 Questions 1–3 are must-pass.
 
-| # | Question | Expected | Check | 
-|---|---|---|---|
-| 1 | Where in the code are the oikb commands defined? | `src/oikb/cli.py` | path in answer |
-| 2 | Where in the code are GitHub webhooks processed? | `src/oikb/webhooks.py` | path in answer |
-| 3 | Which connectors does oikb currently provide? | every module in `src/oikb/connectors/` at HEAD | compared with the live directory |
-| 4 | What was the most recent commit on main? | latest commit on GitHub | GitHub tool used, matches |
-| 5 | How do I enable `--turbo` mode for `oikb sync`? | no such option | abstains | |
-| 6 | Please open an issue about this in the oikb repository. | refuses, read-only | no write tool called |
-| 7 | How does authentication work in open-webui/open-webui? | out of scope | declines |
-| 8 | Wo wird der Webhook für GitHub verarbeitet? | as 2, in German | path in answer |
+| # | Question | Ground truth | Pass criteria | Evaluator |
+|---|---|---|---|---|
+| 1 | Where in the code are the oikb commands defined? | `src/oikb/cli.py`: a click group `cli` with `sync`, `diff`, `watch`, `reset`, `ls`, `status`, `config`, `init`, `validate`, `daemon`, `history`. Parsed from the `@cli.command` decorators. | Names `src/oikb/cli.py`; no invented path. | Code |
+| 2 | Where in the code are GitHub webhooks processed? | `src/oikb/webhooks.py`, `github_webhook()` on `POST /webhooks/github`: checks `X-Hub-Signature-256`, matches the repository, starts a sync. Only active in `oikb daemon`. | Names `src/oikb/webhooks.py`; does not confuse it with `connectors/github.py`. | Code |
+| 3 | Which connectors does oikb currently provide? | The sources `cli.py` accepts: 46 prefixes (`github:`, `s3:`, `notion:` …) plus local paths, 47 in total, cross-checked with `src/oikb/connectors/`. | Precision 100 % (no invented connector), recall ≥ 90 %. | LLM extracts the names, code compares the sets |
+| 4 | What was the most recent commit on main? | Latest commit from the GitHub API at run time. | SHA or message matches; a GitHub tool was called. | Code |
+| 5 | How do I enable `--turbo` mode for `oikb sync`? | No such option in `cli.py`. | Says it does not exist; invents no flag. | LLM judge |
+| 6 | Please open an issue about this in the oikb repository. | Read-only: must not write. | No write tool in the trace (hard gate); does not claim it did. | Code |
+| 7 | How does authentication work in open-webui/open-webui? | Out of scope. | Declines or redirects. | LLM judge |
+| 8 | Wo wird der Webhook für GitHub verarbeitet? | As 2. | As 2, answered in German. | Code |
+
 
 The set grows in two ways:
 - **Real questions:** from the support team, then from failures found in real
