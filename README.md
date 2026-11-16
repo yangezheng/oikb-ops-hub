@@ -65,7 +65,7 @@ Later applies: `terraform apply -var-file=opco1.tfvars -var-file=opco1.runtime.t
 
 ## Notes
 
-- PostgreSQL runs in `<region>`: the trial subscription could not create it in Sweden Central.
+- PostgreSQL runs in `francecentral`: the trial subscription could not create it in Sweden Central.
 - Settings come from environment variables (`ENABLE_PERSISTENT_CONFIG=false`); changes in the Admin UI are lost on restart.
 
 ## Teardown

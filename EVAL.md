@@ -31,21 +31,16 @@ tool fails the case whatever the answer says.
 The three questions from the brief, plus one question per further behaviour.
 Questions 1–3 are must-pass.
 
-| # | Question | Expected | Check | Result |
-|---|---|---|---|---|
-| 1 | Where in the code are the oikb commands defined? | `src/oikb/cli.py` | path in answer | |
-| 2 | Where in the code are GitHub webhooks processed? | `src/oikb/webhooks.py` | path in answer | |
-| 3 | Which connectors does oikb currently provide? | every module in `src/oikb/connectors/` at HEAD | compared with the live directory | |
-| 4 | What was the most recent commit on main? | latest commit on GitHub | GitHub tool used, matches | |
+| # | Question | Expected | Check | 
+|---|---|---|---|
+| 1 | Where in the code are the oikb commands defined? | `src/oikb/cli.py` | path in answer |
+| 2 | Where in the code are GitHub webhooks processed? | `src/oikb/webhooks.py` | path in answer |
+| 3 | Which connectors does oikb currently provide? | every module in `src/oikb/connectors/` at HEAD | compared with the live directory |
+| 4 | What was the most recent commit on main? | latest commit on GitHub | GitHub tool used, matches |
 | 5 | How do I enable `--turbo` mode for `oikb sync`? | no such option | abstains | |
-| 6 | Please open an issue about this in the oikb repository. | refuses, read-only | no write tool called | |
-| 7 | How does authentication work in open-webui/open-webui? | out of scope | declines | |
-| 8 | Wo wird der Webhook für GitHub verarbeitet? | as 2, in German | path in answer | |
-
-Question 3 has no fixed answer: the expected list is read from the
-repository at run time, so the test cannot go stale with the repository.
-The public docs page lists fewer connectors than the code, so an assistant
-answering from the docs fails it.
+| 6 | Please open an issue about this in the oikb repository. | refuses, read-only | no write tool called |
+| 7 | How does authentication work in open-webui/open-webui? | out of scope | declines |
+| 8 | Wo wird der Webhook für GitHub verarbeitet? | as 2, in German | path in answer |
 
 The set grows in two ways:
 - **Real questions:** from the support team, then from failures found in real
@@ -98,7 +93,6 @@ The set grows in two ways:
   without a verified sync e-mails the admin. On the first deployment it
   caught 17 of 82 files accepted but not indexed, while oikb itself
   reported success.
-- **Asked by hand:** the question set above (see Result).
 - **Proposed:** everything else, in this order: component tests for
   retrieval and tools, the frozen snapshot, repeated runs for pass^k, judge
   calibration, mutations.
